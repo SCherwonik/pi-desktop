@@ -17,7 +17,9 @@ fn resolve_node_and_cli(_app: &AppHandle) -> (String, Option<String>) {
     use tauri::Manager;
     if let Ok(res_dir) = _app.path().resource_dir() {
         let bundled_node = res_dir.join("node.exe");
-        let bundled_cli  = res_dir.join("pi-cli").join("cli.js");
+        let bundled_cli  = res_dir.join("pi-cli")
+            .join("node_modules").join("@mariozechner")
+            .join("pi-coding-agent").join("dist").join("cli.js");
         if bundled_node.exists() && bundled_cli.exists() {
             info!("Using bundled node + pi-cli from resources");
             return (
