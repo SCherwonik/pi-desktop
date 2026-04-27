@@ -2,27 +2,14 @@
    Custom Fonts
    ============================================================================ */
 
-/* SF Pro Text — body/UI */
+/* SF Pro Text — body/UI (400 regular, 600 semibold, 700 bold) */
 @font-face { font-family: "SF Pro Text"; src: url("./assets/fonts/SF-Pro-Text-Regular.otf") format("opentype"); font-weight: 400; font-style: normal; }
-@font-face { font-family: "SF Pro Text"; src: url("./assets/fonts/SF-Pro-Text-Medium.otf") format("opentype"); font-weight: 500; font-style: normal; }
 @font-face { font-family: "SF Pro Text"; src: url("./assets/fonts/SF-Pro-Text-Semibold.otf") format("opentype"); font-weight: 600; font-style: normal; }
 @font-face { font-family: "SF Pro Text"; src: url("./assets/fonts/SF-Pro-Text-Bold.otf") format("opentype"); font-weight: 700; font-style: normal; }
-@font-face { font-family: "SF Pro Text"; src: url("./assets/fonts/SF-Pro-Text-Heavy.otf") format("opentype"); font-weight: 800; font-style: normal; }
 
-/* SF Pro Display — headings */
-@font-face { font-family: "SF Pro Display"; src: url("./assets/fonts/SF-Pro-Display-Regular.otf") format("opentype"); font-weight: 400; font-style: normal; }
-@font-face { font-family: "SF Pro Display"; src: url("./assets/fonts/SF-Pro-Display-Medium.otf") format("opentype"); font-weight: 500; font-style: normal; }
+/* SF Pro Display — headings (600 semibold, 700 bold) */
 @font-face { font-family: "SF Pro Display"; src: url("./assets/fonts/SF-Pro-Display-Semibold.otf") format("opentype"); font-weight: 600; font-style: normal; }
 @font-face { font-family: "SF Pro Display"; src: url("./assets/fonts/SF-Pro-Display-Bold.otf") format("opentype"); font-weight: 700; font-style: normal; }
-@font-face { font-family: "SF Pro Display"; src: url("./assets/fonts/SF-Pro-Display-Heavy.otf") format("opentype"); font-weight: 800; font-style: normal; }
-
-/* Neue Haas Unica */
-@font-face { font-family: "Neue Haas Unica"; src: url("./assets/fonts/NeueHaasUnicaW1G-Regular.otf") format("opentype"); font-weight: 400; font-style: normal; }
-@font-face { font-family: "Neue Haas Unica"; src: url("./assets/fonts/NeueHaasUnicaW1G-Italic.otf") format("opentype"); font-weight: 400; font-style: italic; }
-@font-face { font-family: "Neue Haas Unica"; src: url("./assets/fonts/NeueHaasUnicaW1G-Medium.otf") format("opentype"); font-weight: 500; font-style: normal; }
-@font-face { font-family: "Neue Haas Unica"; src: url("./assets/fonts/NeueHaasUnicaW1G-MediumIt.otf") format("opentype"); font-weight: 500; font-style: italic; }
-@font-face { font-family: "Neue Haas Unica"; src: url("./assets/fonts/NeueHaasUnicaW1G-Bold.otf") format("opentype"); font-weight: 700; font-style: normal; }
-@font-face { font-family: "Neue Haas Unica"; src: url("./assets/fonts/NeueHaasUnicaW1G-BoldItalic.otf") format("opentype"); font-weight: 700; font-style: italic; }
 
 /* ============================================================================
    OpenCode Design System — CSS Variables
