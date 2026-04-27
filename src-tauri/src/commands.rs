@@ -12,7 +12,9 @@ use crate::{PiStateHandle, SessionInfo};
 fn resolve_node_and_cli(app: &AppHandle) -> (String, Option<String>) {
     use tauri::Manager;
 
-    // Try bundled resources first (production installs)
+    // Try bundled resources first (production installs only — skip in dev
+    // because the resources/ pi-cli lacks node_modules for its deps).
+    #[cfg(not(debug_assertions))]
     if let Ok(res_dir) = app.path().resource_dir() {
         let bundled_node = res_dir.join("node.exe");
         let bundled_cli  = res_dir.join("pi-cli").join("cli.js");
