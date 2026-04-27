@@ -2206,6 +2206,11 @@ const App: Component = () => {
     }
   });
 
+  // Forward Pi stderr to browser console for debugging
+  listen<string>("pi-stderr", (e) => {
+    console.error("[pi stderr]", e.payload);
+  }).catch(console.error);
+
   onCleanup(() => {
     unlistenFn?.();
     const isTauri = typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;

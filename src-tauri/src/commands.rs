@@ -9,13 +9,13 @@ use crate::{PiStateHandle, SessionInfo};
 
 /// Resolve the node binary and Pi CLI path.
 /// Priority: (1) bundled resources, (2) dev-time local paths, (3) system PATH.
-fn resolve_node_and_cli(app: &AppHandle) -> (String, Option<String>) {
-    use tauri::Manager;
-
+fn resolve_node_and_cli(_app: &AppHandle) -> (String, Option<String>) {
     // Try bundled resources first (production installs only — skip in dev
     // because the resources/ pi-cli lacks node_modules for its deps).
     #[cfg(not(debug_assertions))]
-    if let Ok(res_dir) = app.path().resource_dir() {
+    {
+    use tauri::Manager;
+    if let Ok(res_dir) = _app.path().resource_dir() {
         let bundled_node = res_dir.join("node.exe");
         let bundled_cli  = res_dir.join("pi-cli").join("cli.js");
         if bundled_node.exists() && bundled_cli.exists() {
@@ -26,6 +26,7 @@ fn resolve_node_and_cli(app: &AppHandle) -> (String, Option<String>) {
             );
         }
     }
+    } // end #[cfg(not(debug_assertions))]
 
     // Dev-time fallbacks
     let dev_candidates = [
@@ -105,6 +106,7 @@ pub async fn spawn_pi(app: AppHandle, state: State<'_, PiStateHandle>) -> Result
             match reader.read_line(&mut line).await {
                 Ok(0) => {
                     info!("pi stdout closed");
+                    let _ = app_clone.emit("pi-stderr", "[pi-desktop] Pi process stdout closed (process exited)".to_string());
                     break;
                 }
                 Ok(_) => {
@@ -123,7 +125,14 @@ pub async fn spawn_pi(app: AppHandle, state: State<'_, PiStateHandle>) -> Result
         }
     });
 
+    let app_stderr = app.clone();
     tokio::spawn(async move {
+        use std::io::Write;
+        let log_path = std::env::var("USERPROFILE")
+            .unwrap_or_else(|_| ".".to_string()) + "/pi-stderr.log";
+        let mut log_file = std::fs::OpenOptions::new()
+            .create(true).append(true).open(&log_path).ok();
+
         let mut reader = BufReader::new(stderr);
         let mut line = String::new();
         loop {
@@ -132,7 +141,13 @@ pub async fn spawn_pi(app: AppHandle, state: State<'_, PiStateHandle>) -> Result
                 Ok(0) => break,
                 Ok(_) => {
                     let trimmed = line.trim();
-                    if !trimmed.is_empty() { warn!("[pi stderr] {}", trimmed); }
+                    if !trimmed.is_empty() {
+                        warn!("[pi stderr] {}", trimmed);
+                        let _ = app_stderr.emit("pi-stderr", trimmed.to_string());
+                        if let Some(f) = &mut log_file {
+                            let _ = writeln!(f, "{}", trimmed);
+                        }
+                    }
                 }
                 Err(_) => break,
             }
