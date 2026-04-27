@@ -7,18 +7,39 @@ use serde::Serialize;
 
 use crate::{PiStateHandle, SessionInfo};
 
-async fn find_pi_cli() -> Option<String> {
-    let candidates = [
+/// Resolve the node binary and Pi CLI path.
+/// Priority: (1) bundled resources, (2) dev-time local paths, (3) system PATH.
+fn resolve_node_and_cli(app: &AppHandle) -> (String, Option<String>) {
+    use tauri::Manager;
+
+    // Try bundled resources first (production installs)
+    if let Ok(res_dir) = app.path().resource_dir() {
+        let bundled_node = res_dir.join("node.exe");
+        let bundled_cli  = res_dir.join("pi-cli").join("cli.js");
+        if bundled_node.exists() && bundled_cli.exists() {
+            info!("Using bundled node + pi-cli from resources");
+            return (
+                bundled_node.to_string_lossy().to_string(),
+                Some(bundled_cli.to_string_lossy().to_string()),
+            );
+        }
+    }
+
+    // Dev-time fallbacks
+    let dev_candidates = [
         "C:/Users/Administrator/node_modules/@mariozechner/pi-coding-agent/dist/cli.js",
         "node_modules/@mariozechner/pi-coding-agent/dist/cli.js",
     ];
-    for path in &candidates {
-        if tokio::fs::metadata(path).await.is_ok() {
-            info!("Found pi CLI at: {}", path);
-            return Some(path.to_string());
+    for path in &dev_candidates {
+        if std::path::Path::new(path).exists() {
+            info!("Found pi CLI at dev path: {}", path);
+            return ("node".to_string(), Some(path.to_string()));
         }
     }
-    None
+
+    // Last resort: system `pi` binary on PATH
+    info!("Falling back to system pi binary");
+    ("pi".to_string(), None)
 }
 
 #[tauri::command]
@@ -29,17 +50,15 @@ pub async fn spawn_pi(app: AppHandle, state: State<'_, PiStateHandle>) -> Result
         return Err("Pi process already running".to_string());
     }
 
-    let mut cmd = match find_pi_cli().await {
-        Some(cli_path) => {
-            info!("Spawning pi via node: {}", cli_path);
-            let mut c = Command::new("node");
-            c.arg(cli_path);
-            c
-        }
-        None => {
-            info!("Spawning pi from PATH");
-            Command::new("pi")
-        }
+    let (node_bin, cli_path) = resolve_node_and_cli(&app);
+    let mut cmd = if let Some(cli) = cli_path {
+        info!("Spawning pi via {}: {}", node_bin, cli);
+        let mut c = Command::new(&node_bin);
+        c.arg(cli);
+        c
+    } else {
+        info!("Spawning pi binary directly");
+        Command::new(&node_bin)
     };
 
     cmd.arg("--mode").arg("rpc");

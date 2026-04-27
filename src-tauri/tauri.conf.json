@@ -19,6 +19,10 @@
     "active": true,
     "category": "DeveloperTool",
     "targets": ["nsis", "msi"],
+    "resources": {
+      "resources/node.exe": "node.exe",
+      "resources/pi-cli/**/*": "pi-cli/"
+    },
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico"
