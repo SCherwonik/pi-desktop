@@ -1,0 +1,19 @@
+{
+  "name": "pi-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "cd src && npm run dev",
+    "build": "cd src && npm run build",
+    "preview": "cd src && npm run preview"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "npm": "^10",
+    "to-ico": "^1.1.5"
+  },
+  "dependencies": {
+    "lucide-solid": "^1.11.0"
+  }
+}

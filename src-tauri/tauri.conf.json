@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "pi Desktop",
+  "identifier": "com.pi-desktop.app",
+  "version": "0.1.0",
+  "build": {
+    "beforeDevCommand": "npm --prefix src run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm --prefix src run build",
+    "frontendDist": "../src/dist"
+  },
+  "app": {
+    "windows": [{ "label": "main", "title": "Pi Desktop", "create": true }],
+    "withGlobalTauri": true,
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns", "icons/icon.ico"],
+    "active": true,
+    "category": "DeveloperTool",
+    "targets": ["nsis", "msi"],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": { "schemes": ["pi"] }
+    }
+  }
+}

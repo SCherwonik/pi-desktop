@@ -1,0 +1,17 @@
+/node_modules
+/.cache
+/dist
+/.lean-ctx
+/.claude
+
+# Frontend build output
+/src/node_modules
+/src/dist
+/src/.vite
+
+# Rust build output
+/src-tauri/target
+
+# OS
+.DS_Store
+Thumbs.db
