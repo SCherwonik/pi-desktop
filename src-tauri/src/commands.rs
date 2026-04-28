@@ -463,3 +463,33 @@ pub async fn get_home_dir() -> Result<String, String> {
         .map(|p| p.replace('\\', "/"))
         .map_err(|_| "Cannot determine home directory".to_string())
 }
+
+// ============================================================================
+// Pi Auth — read/write ~/.pi/agent/auth.json
+// ============================================================================
+
+fn pi_agent_dir() -> Result<std::path::PathBuf, String> {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map_err(|_| "Cannot determine home directory".to_string())?;
+    Ok(std::path::Path::new(&home).join(".pi").join("agent"))
+}
+
+#[tauri::command]
+pub async fn read_pi_auth() -> Result<String, String> {
+    let auth_path = pi_agent_dir()?.join("auth.json");
+    if !auth_path.exists() {
+        return Ok("{}".to_string());
+    }
+    std::fs::read_to_string(&auth_path)
+        .map_err(|e| format!("Failed to read auth.json: {}", e))
+}
+
+#[tauri::command]
+pub async fn write_pi_auth(content: String) -> Result<(), String> {
+    let agent_dir = pi_agent_dir()?;
+    std::fs::create_dir_all(&agent_dir)
+        .map_err(|e| format!("Failed to create .pi/agent dir: {}", e))?;
+    std::fs::write(agent_dir.join("auth.json"), &content)
+        .map_err(|e| format!("Failed to write auth.json: {}", e))
+}

@@ -144,6 +144,11 @@ export const CircuitBoard: Component<IconProps> = (p) => S(p.size ?? 24, p.class
   <circle cx="15" cy="15" r="2" />
 </>);
 
+export const Key: Component<IconProps> = (p) => S(p.size ?? 24, p.class, <>
+  <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 0 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 0 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" />
+  <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />
+</>);
+
 export const BrainCircuit: Component<IconProps> = (p) => S(p.size ?? 24, p.class, <>
   <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
   <path d="M9 13a4.5 4.5 0 0 0 3-4" />
@@ -158,4 +163,9 @@ export const BrainCircuit: Component<IconProps> = (p) => S(p.size ?? 24, p.class
   <circle cx="18" cy="3" r=".5" />
   <circle cx="20" cy="21" r=".5" />
   <circle cx="20" cy="8" r=".5" />
+</>);
+
+export const SquarePen: Component<IconProps> = (p) => S(p.size ?? 24, p.class, <>
+  <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+  <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z" />
 </>);

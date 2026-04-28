@@ -32,6 +32,8 @@ import {
   BrainCircuit,
   Keyboard,
   Monitor,
+  Key,
+  SquarePen,
 } from "./icons";
 
 // ============================================================================
@@ -154,8 +156,8 @@ const [fileTreeOpen, setFileTreeOpen] = createSignal(false);
 const [gitOpen, setGitOpen] = createSignal(false);
 const [terminalOpen, setTerminalOpen] = createSignal(false);
 const [settingsOpen, setSettingsOpen] = createSignal(false);
+const [settingsInitialTab, setSettingsInitialTab] = createSignal<SettingsTab>("general");
 const [panelDropdownOpen, setPanelDropdownOpen] = createSignal(false);
-const [modelPickerForceOpen, setModelPickerForceOpen] = createSignal(false);
 const [serverDropdownOpen, setServerDropdownOpen] = createSignal(false);
 const [sidebarOpen, setSidebarOpen] = createSignal(false);
 
@@ -375,12 +377,11 @@ interface TitlebarProps {
   sessions: Session[];
   activeSessionId: string | null;
   currentModel: PiModel | null;
-  availableModels: PiModel[];
-  onSelectModel: (model: PiModel) => void;
-  onOpenModelPicker: () => void;
   cwd: string;
   homePath: string;
   piConnected: boolean;
+  internetConnected: boolean;
+  providerConnected: boolean;
 }
 
 const Titlebar: Component<TitlebarProps> = (props) => {
@@ -390,12 +391,6 @@ const Titlebar: Component<TitlebarProps> = (props) => {
     if (!props.activeSessionId) return "New Session";
     const s = props.sessions.find((s) => s.id === props.activeSessionId);
     return s?.title || "New Session";
-  });
-
-  const modelLabel = createMemo(() => {
-    const m = props.currentModel;
-    if (!m) return "No model";
-    return m.name || `${m.provider}/${m.id}`;
   });
 
   const handleOutsideClick = (e: MouseEvent) => {
@@ -413,12 +408,6 @@ const Titlebar: Component<TitlebarProps> = (props) => {
   });
 
   onCleanup(() => document.removeEventListener("mousedown", handleOutsideClick));
-
-  const openModel = () => {
-    setPanelDropdownOpen(false);
-    props.onOpenModelPicker();
-    setModelPickerForceOpen(true);
-  };
 
   return (
     <div class="titlebar" data-tauri-drag-region>
@@ -446,18 +435,6 @@ const Titlebar: Component<TitlebarProps> = (props) => {
         </Show>
       </div>
       <div class="titlebar-right">
-        {/* Hidden anchor for model picker dropdown positioning */}
-        <div class="model-picker-anchor">
-          <ModelPicker
-            currentModel={props.currentModel}
-            availableModels={props.availableModels}
-            forceOpen={modelPickerForceOpen()}
-            onClose={() => setModelPickerForceOpen(false)}
-            onSelectModel={props.onSelectModel}
-            onOpen={props.onOpenModelPicker}
-          />
-        </div>
-
         {/* Server status */}
         <div class="server-status-wrap">
           <button
@@ -472,13 +449,27 @@ const Titlebar: Component<TitlebarProps> = (props) => {
             <div class="server-drop-backdrop" onClick={() => setServerDropdownOpen(false)} />
             <div class="server-dropdown">
               <div class="server-drop-tabs">
-                <span class="server-drop-tab active">1 Servers</span>
+                <span class="server-drop-tab active">3 Connections</span>
               </div>
               <div class="server-drop-body">
+                <div class="server-entry">
+                  <span class={`server-dot${props.internetConnected ? " connected" : ""}`} />
+                  <span class="server-entry-name">Internet Connection</span>
+                  <Show when={props.internetConnected}>
+                    <span class="server-entry-check">✓</span>
+                  </Show>
+                </div>
                 <div class="server-entry">
                   <span class={`server-dot${props.piConnected ? " connected" : ""}`} />
                   <span class="server-entry-name">Local Server</span>
                   <Show when={props.piConnected}>
+                    <span class="server-entry-check">✓</span>
+                  </Show>
+                </div>
+                <div class="server-entry">
+                  <span class={`server-dot${props.providerConnected ? " connected" : ""}`} />
+                  <span class="server-entry-name">Provider Online</span>
+                  <Show when={props.providerConnected}>
                     <span class="server-entry-check">✓</span>
                   </Show>
                 </div>
@@ -499,13 +490,6 @@ const Titlebar: Component<TitlebarProps> = (props) => {
           </button>
           <Show when={panelDropdownOpen()}>
             <div class="panel-dropdown">
-              {/* Model */}
-              <button class="panel-dropdown-item" onClick={openModel}>
-                <span class="panel-dropdown-icon"><Atom size={14}/></span>
-                <span class="panel-dropdown-label">Model</span>
-                <span class="panel-dropdown-meta">{modelLabel()}</span>
-              </button>
-              <div class="panel-dropdown-sep" />
               {/* Terminal */}
               <button
                 class={`panel-dropdown-item${terminalOpen() ? " panel-item-active" : ""}`}
@@ -566,6 +550,8 @@ const Titlebar: Component<TitlebarProps> = (props) => {
 
 interface StatusBarProps {
   currentModel: PiModel | null;
+  availableModels: PiModel[];
+  onSelectModel: (m: PiModel) => void;
   sessionUsage: TokenUsage;
   ctxTokens: number;
   onCompact: () => void;
@@ -574,6 +560,63 @@ interface StatusBarProps {
 const StatusBar: Component<StatusBarProps> = (props) => {
   const [verbDropOpen, setVerbDropOpen] = createSignal(false);
   const [effortDropOpen, setEffortDropOpen] = createSignal(false);
+  const [modelDropOpen, setModelDropOpen] = createSignal(false);
+  const [modelSearch, setModelSearch] = createSignal("");
+  const [modelActiveIdx, setModelActiveIdx] = createSignal(0);
+  let modelSearchRef: HTMLInputElement | undefined;
+  let modelListRef: HTMLDivElement | undefined;
+
+  const filteredModels = () => {
+    const q = modelSearch().toLowerCase();
+    if (!q) return props.availableModels;
+    return props.availableModels.filter(m =>
+      (m.name || `${m.provider}/${m.id}`).toLowerCase().includes(q)
+    );
+  };
+
+  createEffect(() => { modelSearch(); setModelActiveIdx(0); });
+
+  createEffect(() => {
+    if (modelDropOpen()) {
+      requestAnimationFrame(() => requestAnimationFrame(() => modelSearchRef?.focus()));
+    }
+  });
+
+  createEffect(() => {
+    const idx = modelActiveIdx();
+    requestAnimationFrame(() => {
+      const el = modelListRef?.querySelectorAll<HTMLElement>(".status-drop-item")[idx];
+      el?.scrollIntoView({ block: "nearest" });
+    });
+  });
+
+  createEffect(() => {
+    if (!modelDropOpen()) return;
+    const handler = (e: KeyboardEvent) => {
+      if (!modelSearchRef) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === "Escape") {
+        handleModelKeyDown(e);
+        return;
+      }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) modelSearchRef.focus();
+    };
+    document.addEventListener("keydown", handler);
+    onCleanup(() => document.removeEventListener("keydown", handler));
+  });
+
+  const closeModelDrop = () => {
+    setModelDropOpen(false);
+    setModelSearch("");
+    setModelActiveIdx(0);
+  };
+
+  const handleModelKeyDown = (e: KeyboardEvent) => {
+    const models = filteredModels();
+    if (e.key === "ArrowDown") { e.preventDefault(); setModelActiveIdx(i => Math.min(i + 1, models.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setModelActiveIdx(i => Math.max(i - 1, 0)); }
+    else if (e.key === "Enter") { e.preventDefault(); const m = models[modelActiveIdx()]; if (m) { props.onSelectModel(m); closeModelDrop(); } }
+    else if (e.key === "Escape") { closeModelDrop(); }
+  };
 
   const shortModelLabel = () => {
     const m = props.currentModel;
@@ -611,12 +654,59 @@ const StatusBar: Component<StatusBarProps> = (props) => {
     <div class="status-bar">
       {/* LEFT: model · effort · transcript view */}
       <div class="status-left">
-        <span class="status-model-label">{shortModelLabel()}</span>
+        <div class="status-drop-wrap">
+          <button
+            class="status-pill"
+            onClick={() => { setModelDropOpen(o => !o); setEffortDropOpen(false); setVerbDropOpen(false); }}
+            title="Switch model"
+          >
+            {shortModelLabel()}
+          </button>
+          <Show when={modelDropOpen()}>
+            <div class="status-drop-backdrop" onClick={closeModelDrop} />
+            <div class="status-dropdown" style={{ "min-width": "220px" }}>
+              <div class="model-search-wrap" style={{ "padding-left": "1px", "padding-right": "1px", "padding-bottom": "8px" }}>
+                <input
+                  ref={modelSearchRef}
+                  class="model-search"
+                  type="text"
+                  placeholder="Search models…"
+                  value={modelSearch()}
+                  onInput={e => setModelSearch(e.currentTarget.value)}
+                />
+              </div>
+              <div ref={modelListRef} style={{ "max-height": "220px", "overflow-y": "auto", "scrollbar-width": "thin", "scrollbar-color": "rgba(255,255,255,0.2) transparent" }}>
+                <For each={filteredModels()}>{(model, idx) => {
+                  const label = (model.name || model.id || model.provider)
+                    .replace(/^claude-/i, "")
+                    .replace(/-\d{8}$/, "")
+                    .split("-")
+                    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join(" ");
+                  const isActive = props.currentModel?.provider === model.provider && props.currentModel?.id === model.id;
+                  return (
+                    <button
+                      class={`status-drop-item${isActive ? " active" : ""}${modelActiveIdx() === idx() ? " focused" : ""}`}
+                      onMouseEnter={() => setModelActiveIdx(idx())}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => { props.onSelectModel(model); closeModelDrop(); }}
+                    >
+                      {label}
+                    </button>
+                  );
+                }}</For>
+                <Show when={filteredModels().length === 0}>
+                  <div class="status-drop-item" style={{ opacity: "0.5", cursor: "default" }}>No models found</div>
+                </Show>
+              </div>
+            </div>
+          </Show>
+        </div>
 
         <div class="status-drop-wrap">
           <button
             class="status-pill"
-            onClick={() => { setEffortDropOpen(o => !o); setVerbDropOpen(false); }}
+            onClick={() => { setEffortDropOpen(o => !o); setVerbDropOpen(false); setModelDropOpen(false); }}
             title="Effort level"
           >
             {effortLabel()}
@@ -639,7 +729,7 @@ const StatusBar: Component<StatusBarProps> = (props) => {
         <div class="status-drop-wrap">
           <button
             class="status-pill"
-            onClick={() => { setVerbDropOpen(o => !o); setEffortDropOpen(false); }}
+            onClick={() => { setVerbDropOpen(o => !o); setEffortDropOpen(false); setModelDropOpen(false); }}
             title="Transcript view"
           >
             {verbLabel()}
@@ -1167,43 +1257,80 @@ interface SessionSidebarProps {
 }
 
 const SessionSidebar: Component<SessionSidebarProps> = (props) => {
-  const formatDate = (date: Date) => {
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days === 0) return "Today";
-    if (days === 1) return "Yesterday";
-    if (days < 7) return `${days} days ago`;
-    return date.toLocaleDateString();
+  const [openGroups, setOpenGroups] = createSignal<Set<string>>(new Set());
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.add(label);
+      return next;
+    });
   };
+
+  const getGroupLabel = (date: Date): string => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.round((todayStart.getTime() - d.getTime()) / 86400000);
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return "This Week";
+    if (diffDays < 30) return "This Month";
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  };
+
+  const grouped = createMemo(() => {
+    const map = new Map<string, Session[]>();
+    for (const s of props.sessions) {
+      const label = getGroupLabel(s.timestamp);
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(s);
+    }
+    return map;
+  });
 
   return (
     <aside class={`sidebar${sidebarOpen() ? "" : " collapsed"}`}>
       <div class="sidebar-header">
         <button class="new-session-btn" onClick={props.onNewSession} aria-label="New session" title="New session">
-          +
+          <SquarePen size={13} /> New Session
         </button>
       </div>
       <div class="session-list">
-        <For each={props.sessions}>
-          {(session) => (
-            <div class={`session-item ${session.id === props.activeSessionId ? "active" : ""}`}>
+        <For each={[...grouped().entries()]}>
+          {([label, sessions]) => (
+            <div class="session-group">
               <button
-                class="session-item-body"
-                onClick={() => props.onSelectSession(session.id)}
+                class="session-group-header"
+                onClick={() => toggleGroup(label)}
               >
-                <div class="session-info">
-                  <div class="session-title">{session.title}</div>
-                  <div class="session-meta">
-                    <span class="session-date">{formatDate(session.timestamp)}</span>
-                  </div>
-                </div>
+                <span class={`session-group-caret${openGroups().has(label) ? " open" : ""}`}>▶</span>
+                <span class="session-group-label">{label}</span>
+                <span class="session-group-count">{sessions.length}</span>
               </button>
-              <button
-                class="session-delete-btn"
-                title="Delete session"
-                onClick={e => { e.stopPropagation(); props.onDeleteSession(session.id); }}
-              >✕</button>
+              <Show when={openGroups().has(label)}>
+                <div class="session-group-items">
+                  <For each={sessions}>
+                    {(session) => (
+                      <div class={`session-item ${session.id === props.activeSessionId ? "active" : ""}`}>
+                        <button
+                          class="session-item-body"
+                          onClick={() => props.onSelectSession(session.id)}
+                        >
+                          <div class="session-info">
+                            <div class="session-title">{session.title}</div>
+                          </div>
+                        </button>
+                        <button
+                          class="session-delete-btn"
+                          title="Delete session"
+                          onClick={e => { e.stopPropagation(); props.onDeleteSession(session.id); }}
+                        >✕</button>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
             </div>
           )}
         </For>
@@ -1472,7 +1599,7 @@ function parseSessionEntries(entries: any[]): Message[] {
 // Settings Modal
 // ============================================================================
 
-type SettingsTab = "general" | "models" | "shortcuts";
+type SettingsTab = "general" | "models" | "shortcuts" | "providers";
 
 const SHORTCUTS = [
   { keys: "Enter",       description: "Send message" },
@@ -1497,17 +1624,96 @@ const ConfirmDialog: Component = () => (
   </Show>
 );
 
+type AuthEntry = { type: string; key: string };
+type AuthMap = Record<string, AuthEntry>;
+
+const KNOWN_PROVIDERS = [
+  "anthropic", "openai", "openrouter", "google", "mistral",
+  "groq", "deepseek", "xai", "bedrock", "azure",
+];
+
 const SettingsModal: Component<{
   availableModels: PiModel[];
   currentModel: PiModel | null;
   onSelectModel: (m: PiModel) => void;
   onFetchModels: () => void;
+  initialTab?: SettingsTab;
+  onRestartPi?: () => Promise<void>;
 }> = (props) => {
-  const [tab, setTab] = createSignal<SettingsTab>("general");
+  const [tab, setTab] = createSignal<SettingsTab>(props.initialTab ?? "general");
+  const [auth, setAuth] = createSignal<AuthMap>({});
+  const [newProvider, setNewProvider] = createSignal("");
+  const [newKey, setNewKey] = createSignal("");
+  const [providerDropOpen, setProviderDropOpen] = createSignal(false);
+  const [dropPos, setDropPos] = createSignal({ top: 0, left: 0 });
+  let providerBtnRef: HTMLButtonElement | undefined;
+  const [authSaving, setAuthSaving] = createSignal(false);
+  const [authMsg, setAuthMsg] = createSignal("");
+  const [restarting, setRestarting] = createSignal(false);
+
+  const openProviderDrop = () => {
+    if (providerBtnRef) {
+      const r = providerBtnRef.getBoundingClientRect();
+      setDropPos({ top: r.bottom + 4, left: r.left });
+    }
+    setProviderDropOpen(true);
+  };
+
+  const loadAuth = async () => {
+    try {
+      const raw = await invoke<string>("read_pi_auth");
+      setAuth(JSON.parse(raw) as AuthMap);
+    } catch (e) {
+      console.warn("Failed to load auth.json:", e);
+    }
+  };
+
+  const saveAuth = async (updated: AuthMap) => {
+    setAuthSaving(true);
+    setAuthMsg("");
+    try {
+      await invoke("write_pi_auth", { content: JSON.stringify(updated, null, 2) });
+      setAuth(updated);
+      if (props.onRestartPi) {
+        setRestarting(true);
+        setAuthMsg("Restarting Pi…");
+        try {
+          await props.onRestartPi();
+          setAuthMsg("Ready.");
+        } catch {
+          setAuthMsg("Saved. Restart Pi manually to apply key.");
+        } finally {
+          setRestarting(false);
+        }
+      } else {
+        setAuthMsg("Saved.");
+      }
+      setTimeout(() => setAuthMsg(""), 3000);
+    } catch (e) {
+      setAuthMsg(`Error: ${e}`);
+    } finally {
+      setAuthSaving(false);
+    }
+  };
+
+  const deleteProvider = (name: string) => {
+    const updated = { ...auth() };
+    delete updated[name];
+    saveAuth(updated);
+  };
+
+  const addOrUpdateProvider = () => {
+    const p = newProvider().trim().toLowerCase();
+    const k = newKey().trim();
+    if (!p || !k) return;
+    saveAuth({ ...auth(), [p]: { type: "api_key", key: k } });
+    setNewProvider("");
+    setNewKey("");
+  };
 
   onMount(() => {
-    // Always fetch fresh model list when settings opens
     props.onFetchModels();
+    loadAuth();
   });
 
   return (
@@ -1529,6 +1735,9 @@ const SettingsModal: Component<{
             </button>
             <button class={`settings-nav-item${tab() === "shortcuts" ? " active" : ""}`} onClick={() => setTab("shortcuts")}>
               <Keyboard size={13}/> Shortcuts
+            </button>
+            <button class={`settings-nav-item${tab() === "providers" ? " active" : ""}`} onClick={() => setTab("providers")}>
+              <Key size={13}/> Providers
             </button>
           </nav>
         </div>
@@ -1615,6 +1824,77 @@ const SettingsModal: Component<{
                     </div>
                   )}
                 </For>
+              </div>
+            </div>
+          </Show>
+
+          <Show when={tab() === "providers"}>
+            <div class="settings-section">
+              <h2 class="settings-section-title">API Keys</h2>
+              <p class="settings-section-desc">Stored in ~/.pi/agent/auth.json. Pi reads this on startup — restart Pi after changes.</p>
+
+              <div class="settings-group">
+                <Show when={Object.keys(auth()).length === 0}>
+                  <div class="settings-empty">No API keys configured.</div>
+                </Show>
+                <For each={Object.entries(auth())}>
+                  {([provider, entry]) => (
+                    <div class="settings-provider-row">
+                      <span class="settings-provider-name">{provider}</span>
+                      <span class="settings-provider-key">{"•".repeat(8)}{entry.key.slice(-4)}</span>
+                      <button class="settings-provider-delete" title="Remove" onClick={() => deleteProvider(provider)}>✕</button>
+                    </div>
+                  )}
+                </For>
+              </div>
+
+              <div class="settings-group">
+                <h3 class="settings-group-title">Add / Update Key</h3>
+                <div class="settings-provider-form">
+                  <div style={{ position: "relative" }}>
+                    <button
+                      ref={providerBtnRef}
+                      class={`settings-option-btn${providerDropOpen() ? " active" : ""}`}
+                      onClick={() => providerDropOpen() ? setProviderDropOpen(false) : openProviderDrop()}
+                    >
+                      {newProvider() || "Select provider…"}
+                    </button>
+                    <Show when={providerDropOpen()}>
+                      <div class="status-drop-backdrop" onClick={() => setProviderDropOpen(false)} />
+                      <div
+                        class="status-dropdown provider-dropdown"
+                        style={{ position: "fixed", top: `${dropPos().top}px`, left: `${dropPos().left}px`, bottom: "auto", "z-index": "2000", width: "160px", "max-height": "220px", "overflow-y": "auto" }}
+                      >
+                        <For each={KNOWN_PROVIDERS}>
+                          {(p) => (
+                            <button
+                              class={`status-drop-item${newProvider() === p ? " active" : ""}`}
+                              onClick={() => { setNewProvider(p); setProviderDropOpen(false); }}
+                            >{p}</button>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  </div>
+                  <input
+                    class="settings-provider-input"
+                    type="password"
+                    placeholder="API key"
+                    value={newKey()}
+                    onInput={(e) => setNewKey(e.currentTarget.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addOrUpdateProvider()}
+                  />
+                  <button
+                    class="settings-provider-add"
+                    disabled={!newProvider() || !newKey() || authSaving() || restarting()}
+                    onClick={addOrUpdateProvider}
+                  >
+                    {restarting() ? "Restarting…" : authSaving() ? "Saving…" : "Save"}
+                  </button>
+                </div>
+                <Show when={authMsg()}>
+                  <div class="settings-provider-msg">{authMsg()}</div>
+                </Show>
               </div>
             </div>
           </Show>
@@ -1705,8 +1985,38 @@ const App: Component = () => {
   const [terminalOutput, setTerminalOutput] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
   const [piConnected, setPiConnected] = createSignal(false);
+  const [internetConnected, setInternetConnected] = createSignal(navigator.onLine);
   const [currentModel, setCurrentModel] = createSignal<PiModel | null>(null);
   const [availableModels, setAvailableModels] = createSignal<PiModel[]>([]);
+
+  // Internet: track browser online/offline events
+  window.addEventListener("online",  () => setInternetConnected(true));
+  window.addEventListener("offline", () => setInternetConnected(false));
+
+  // Auth map — kept at App level so providerConnected can read it
+  const [appAuth, setAppAuth] = createSignal<AuthMap>({});
+  const loadAppAuth = async () => {
+    try {
+      const raw = await invoke<string>("read_pi_auth");
+      setAppAuth(JSON.parse(raw) as AuthMap);
+    } catch { setAppAuth({}); }
+  };
+
+  // Provider: pi running + model selected + provider has a key
+  const providerConnected = createMemo(() => {
+    const model = currentModel();
+    if (!piConnected() || !model) return false;
+    const entry = appAuth()[model.provider.toLowerCase()];
+    return !!(entry && entry.key);
+  });
+
+  // Clear model display when its provider loses its key
+  createEffect(() => {
+    const model = currentModel();
+    if (!model) return;
+    const entry = appAuth()[model.provider.toLowerCase()];
+    if (!entry || !entry.key) setCurrentModel(null);
+  });
   const [sessionUsage, setSessionUsage] = createSignal<TokenUsage>({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 });
   const [lastCtxTokens, setLastCtxTokens] = createSignal(0); // context window usage from last API call
   const [pendingMessage, setPendingMessage] = createSignal<Message | null>(null);
@@ -1747,6 +2057,7 @@ const App: Component = () => {
     invoke<string>("get_home_dir")
       .then(h => setHomePath(h))
       .catch(() => {});
+    loadAppAuth();
   });
 
   // Fetch git branch when cwd changes
@@ -1846,7 +2157,8 @@ const App: Component = () => {
     switch (name) {
       case "model":
         await handleOpenModelPicker();
-        setModelPickerForceOpen(true);
+        setSettingsInitialTab("models");
+        setSettingsOpen(true);
         break;
 
       case "new":
@@ -1902,6 +2214,13 @@ const App: Component = () => {
         break;
 
       case "settings":
+        setSettingsInitialTab("general");
+        setSettingsOpen(true);
+        break;
+
+      case "login":
+      case "logout":
+        setSettingsInitialTab("providers");
         setSettingsOpen(true);
         break;
 
@@ -1910,8 +2229,6 @@ const App: Component = () => {
       case "changelog":
       case "hotkeys":
       case "tree":
-      case "login":
-      case "logout":
       case "reload":
       case "import":
       case "resume":
@@ -1925,6 +2242,28 @@ const App: Component = () => {
           id: generateId(),
         });
         break;
+    }
+  };
+
+  const restartPi = async () => {
+    try {
+      setPiConnected(false);
+      setCurrentModel(null);
+      setMessages([]);
+      await invoke("kill_pi").catch(() => {});
+      await new Promise(r => setTimeout(r, 500));
+      await invoke("spawn_pi");
+      setPiConnected(true);
+      await sendRpc({ type: "new_session", id: generateId() });
+      await Promise.all([
+        sendRpc({ type: "get_state", id: generateId() }),
+        sendRpc({ type: "get_commands", id: generateId() }),
+        sendRpc({ type: "get_available_models", id: generateId() }),
+        loadSessions(),
+        loadAppAuth(),
+      ]);
+    } catch (e) {
+      setError(`Failed to restart pi: ${e}`);
     }
   };
 
@@ -1945,12 +2284,14 @@ const App: Component = () => {
       await Promise.all([
         sendRpc({ type: "get_state", id: generateId() }),
         sendRpc({ type: "get_commands", id: generateId() }),
+        sendRpc({ type: "get_available_models", id: generateId() }),
         loadSessions(),
       ]);
     } catch (e) {
       console.error("Failed to spawn pi:", e);
       setError(`Failed to spawn pi: ${e}`);
     }
+
 
     try {
       unlistenFn = await listen<PiEvent>("pi-event", (event) => {
@@ -2159,8 +2500,13 @@ const App: Component = () => {
                 );
               }
 
-            } else if (cmd === "get_commands" && Array.isArray(data.data)) {
-              const cmds: SlashCommand[] = (data.data as any[]).map((c: any) => ({
+            } else if (cmd === "get_commands") {
+              const rawCmds: any[] = Array.isArray(data.data)
+                ? data.data
+                : Array.isArray(data.data?.commands)
+                ? data.data.commands
+                : [];
+              const cmds: SlashCommand[] = rawCmds.map((c: any) => ({
                 name: c.name,
                 description: c.description ?? "",
                 source: (c.source as SlashCommand["source"]) ?? "extension",
@@ -2191,6 +2537,14 @@ const App: Component = () => {
 
             } else if (cmd === "set_session_name") {
               addSystemMessage(`Session renamed.`);
+            }
+            break;
+          }
+
+          case "extension_ui_request": {
+            const method = data.method as string;
+            if (method === "notify") {
+              addSystemMessage(data.message ?? "");
             }
             break;
           }
@@ -2314,12 +2668,11 @@ const App: Component = () => {
         sessions={sessions()}
         activeSessionId={activeSessionId()}
         currentModel={currentModel()}
-        availableModels={availableModels()}
-        onSelectModel={handleSelectModel}
-        onOpenModelPicker={handleOpenModelPicker}
         cwd={cwd()}
         homePath={homePath()}
         piConnected={piConnected()}
+        internetConnected={internetConnected()}
+        providerConnected={providerConnected()}
       />
       <div class="app-content">
         <SessionSidebar
@@ -2388,7 +2741,7 @@ const App: Component = () => {
                     disabled={isLoading()}
                     slashCommands={allSlashCommands()}
                   />
-                  <StatusBar currentModel={currentModel()} sessionUsage={sessionUsage()} ctxTokens={lastCtxTokens()} onCompact={() => sendRpc({ type: "compact", id: generateId() })} />
+                  <StatusBar currentModel={currentModel()} availableModels={availableModels()} onSelectModel={handleSelectModel} sessionUsage={sessionUsage()} ctxTokens={lastCtxTokens()} onCompact={() => sendRpc({ type: "compact", id: generateId() })} />
                 </div>
               </div>
             </main>
@@ -2433,6 +2786,8 @@ const App: Component = () => {
           currentModel={currentModel()}
           onSelectModel={handleSelectModel}
           onFetchModels={handleOpenModelPicker}
+          initialTab={settingsInitialTab()}
+          onRestartPi={restartPi}
         />
       </Show>
       <ConfirmDialog />

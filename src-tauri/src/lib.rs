@@ -71,6 +71,8 @@ pub fn run() {
             commands::get_git_status,
             commands::get_git_branch,
             commands::get_home_dir,
+            commands::read_pi_auth,
+            commands::write_pi_auth,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
