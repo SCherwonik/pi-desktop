@@ -13,7 +13,5 @@
     "npm": "^10",
     "to-ico": "^1.1.5"
   },
-  "dependencies": {
-    "lucide-solid": "^1.11.0"
-  }
+  "dependencies": {}
 }
